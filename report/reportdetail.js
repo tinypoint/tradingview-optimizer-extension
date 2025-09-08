@@ -25,6 +25,184 @@ function parsePercent(str) {
   return (parseFloat(cleaned) / 100).toFixed(4);
 }
 
+let charts = []; // 存放所有 chart 实例，方便联动
+
+function drawCharts(data) {
+  const labels = data.map(item => item.parameters);
+
+  const chartProfit = new Chart(
+    document.getElementById('chartProfit').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '总盈亏百分比',
+            data: data.map(item => parseFloat(item.netProfitPercent)),
+            borderWidth: 2,
+          }
+        ]
+      },
+      options: baseChartOptions('总盈亏 (%)', '百分比', true)
+    }
+  );
+
+  // 胜率
+  const winrateValues = data.map(item => parseFloat(item.percentProfitable));
+  const minWin = Math.min(...winrateValues);
+  const maxWin = Math.max(...winrateValues);
+
+  // 多留 10% 缓冲
+  const winrateRange = {
+    min: minWin * 0.99,
+    max: maxWin * 1.01
+  };
+
+  const chartWinrate = new Chart(
+    document.getElementById('chartWinrate').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '胜率',
+            data: winrateValues,
+            borderWidth: 2,
+          }
+        ]
+      },
+      options: baseChartOptions('胜率 (%)', '百分比', true, winrateRange)
+    }
+  );
+
+  // 最大回撤
+  const drawdownValues = data.map(item => parseFloat(item.maxDrawdownPercent));
+  const minDrawdown = Math.min(...drawdownValues);
+  const maxDrawdown = Math.max(...drawdownValues);
+
+  const drawdownRange = {
+    min: minDrawdown * 0.9,
+    max: maxDrawdown * 1.1
+  };
+
+  const chartDrawdown = new Chart(
+    document.getElementById('chartDrawdown').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '最大回撤百分比',
+            data: drawdownValues,
+            borderWidth: 2,
+          }
+        ]
+      },
+      options: baseChartOptions('最大回撤 (%)', '百分比', true, drawdownRange)
+    }
+  );
+
+
+  // 2️⃣ 总交易数
+  const chartTrades = new Chart(
+    document.getElementById('chartTrades').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '总交易数',
+            data: data.map(item => parseFloat(item.closedTrades)),
+            borderWidth: 2,
+          }
+        ]
+      },
+      options: baseChartOptions('总交易数', '交易数')
+    }
+  );
+
+  // 4️⃣ 单笔平均盈亏金额
+  const chartAvgTrade = new Chart(
+    document.getElementById('chartAvgTrade').getContext('2d'),
+    {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '单笔平均盈亏金额',
+            data: data.map(item => parseFloat(item.averageTradeAmount)),
+            borderWidth: 2,
+          }
+        ]
+      },
+      options: baseChartOptions('单笔平均盈亏金额', '金额')
+    }
+  );
+
+  charts = [chartProfit, chartDrawdown, chartTrades, chartWinrate, chartAvgTrade];
+}
+
+function baseChartOptions(title, yLabel, isPercent = false, minMax = null) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      title: {
+        display: true,
+        text: title
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: '参数组合' }
+      },
+      y: {
+        beginAtZero: minMax ? false : true, // 如果手动设范围，就不用强制从 0 开始
+        suggestedMin: minMax ? minMax.min : undefined,
+        suggestedMax: minMax ? minMax.max : undefined,
+        title: { display: true, text: yLabel },
+        ticks: isPercent
+          ? {
+              callback: value => (value * 100).toFixed(0) + '%'
+            }
+          : {}
+      }
+    }
+  };
+}
+
+
+
+function enableChartLinking() {
+  charts.forEach(chart => {
+    chart.options.onHover = (evt, activeEls) => {
+      if (activeEls.length) {
+        const index = activeEls[0].index;
+        charts.forEach(c => {
+          if (c !== chart) {
+            c.setActiveElements([{ datasetIndex: 0, index }]);
+            c.tooltip.setActiveElements([{ datasetIndex: 0, index }], {
+              x: 0,
+              y: 0
+            });
+            c.update();
+          }
+        });
+      }
+    };
+  });
+}
+
+
 // Message handling
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
@@ -145,6 +323,8 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
       document.querySelector(`input[data-field='${parameterName}']`).nextElementSibling.innerText = detailedParameter.name
       document.querySelector(`input[data-field='${parameterName}']`).parentElement.style.display = 'block'
     });
+    drawCharts(reportDetailData);
+    enableChartLinking();
   }, 250);
   const $downloadReportButton = $('#download-report')
 

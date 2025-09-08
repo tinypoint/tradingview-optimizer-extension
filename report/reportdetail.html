@@ -74,6 +74,14 @@
           </tr>
         </thead>
       </table>
+      <div class="mt-5 charts-container" style="max-width: 900px; margin: 0 auto;">
+        <div style="height:300px"><canvas id="chartProfit"></canvas></div>
+        <div style="height:300px" class="mt-4"><canvas id="chartDrawdown"></canvas></div>
+        <div style="height:300px" class="mt-4"><canvas id="chartWinrate"></canvas></div>
+        <div style="height:300px" class="mt-4"><canvas id="chartAvgTrade"></canvas></div>
+        <div style="height:300px" class="mt-4"><canvas id="chartTrades"></canvas></div>
+      </div>
+      
     </div>
 
     <div class="container-fluid">
@@ -95,6 +103,7 @@
       </footer>
     </div>
   </div>
+  <script src="/libs/chart.js/chart.umd.js"></script>
   <script src="/libs/jquery/jquery-3.6.0.min.js"></script>
   <script src="/libs/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="/libs/bootstrap-table/js/bootstrap-table.min.js"></script>
