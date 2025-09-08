@@ -12,6 +12,19 @@ var $table = $('#table')
 // update non-functional UI components for free/plus users
 updateUserUI();
 
+function parseAmount(str) {
+  if (!str) return 0;
+  let cleaned = str.replace(/[,$USD\s]/g, "");
+  return parseFloat(cleaned).toFixed(2);
+}
+
+// 处理百分比（去掉 %），转为 0~1 区间，保留 4 位小数
+function parsePercent(str) {
+  if (!str) return 0;
+  let cleaned = str.replace(/[%\s]/g, "");
+  return (parseFloat(cleaned) / 100).toFixed(4);
+}
+
 // Message handling
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
@@ -28,18 +41,20 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
             // omit if strategyId does not match 
             break;
           }
-          for (const [key, value] of Object.entries(popupAction.message.report.reportData)) {
+          for (const [key, value] of Object.entries(popupAction.message.report.reportData)) {            
+            let total = parseAmount(value.netProfit.amount);
+            let trades = parseInt(value.closedTrades) || 0;
             let reportDetail = {
               "parameters": key,
-              "netProfitAmount": value.netProfit.amount,
-              "netProfitPercent": value.netProfit.percent,
-              "maxDrawdownAmount": value.maxDrawdown.amount,
-              "maxDrawdownPercent": value.maxDrawdown.percent,
+              "netProfitAmount": parseAmount(value.netProfit.amount),
+              "netProfitPercent": parsePercent(value.netProfit.percent),
+              "maxDrawdownAmount": parseAmount(value.maxDrawdown.amount),
+              "maxDrawdownPercent": parsePercent(value.maxDrawdown.percent),
               "closedTrades": value.closedTrades,
-              "percentProfitable": value.percentProfitable,
+              "percentProfitable": parsePercent(value.percentProfitable),
               "profitFactor": value.profitFactor,
-              "averageTradeAmount": value?.averageTrade.amount,
-              "averageTradePercent": value?.averageTrade.percent,
+              "averageTradeAmount": trades > 0 ? (total / trades).toFixed(2) : 0,
+              "averageTradePercent": parsePercent(value?.averageTrade.percent),
               "avgerageBarsInTrades": value?.avgerageBarsInTrades,
             }
             let reportDetailCSV = { ...reportDetail }
@@ -81,17 +96,20 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
       isDeprecatedReportData = true; // meaning it's old report data structure
     }
 
+    let total = parseAmount(value.netProfit.amount);
+    let trades = parseInt(value.closedTrades) || 0;
+
     let reportDetail = {
       "parameters": key,
-      "netProfitAmount": value.netProfit.amount,
-      "netProfitPercent": value.netProfit.percent,
-      "maxDrawdownAmount": value.maxDrawdown.amount,
-      "maxDrawdownPercent": value.maxDrawdown.percent,
+      "netProfitAmount": parseAmount(value.netProfit.amount),
+      "netProfitPercent": parsePercent(value.netProfit.percent),
+      "maxDrawdownAmount": parseAmount(value.maxDrawdown.amount),
+      "maxDrawdownPercent": parsePercent(value.maxDrawdown.percent),
       "closedTrades": value.closedTrades,
-      "percentProfitable": value.percentProfitable,
+      "percentProfitable": parsePercent(value.percentProfitable),
       "profitFactor": value.profitFactor,
-      "averageTradeAmount": value?.averageTrade.amount,
-      "averageTradePercent": value?.averageTrade.percent,
+      "averageTradeAmount": trades > 0 ? (total / trades).toFixed(2) : 0,
+      "averageTradePercent": parsePercent(value?.averageTrade.percent),
       "avgerageBarsInTrades": value?.avgerageBarsInTrades,
     }
     let reportDetailCSV = { ...reportDetail }
@@ -107,7 +125,7 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
 
   if (!isDeprecatedReportData) {
     // new report data doesn't have those values
-    $table.bootstrapTable('hideColumn', 'averageTradeAmount');
+    // $table.bootstrapTable('hideColumn', 'averageTradeAmount');
     $table.bootstrapTable('hideColumn', 'averageTradePercent');
     $table.bootstrapTable('hideColumn', 'avgerageBarsInTrades');
   }
@@ -189,15 +207,39 @@ function downloadCSVReport(reportDetailData) {
 }
 
 function convertReportToCSV(reportDetailData) {
-  const keys = Object.keys(reportDetailData[0]);
-  var result = keys.map((key) => {
-    return key.toUpperCase();
-  }).join(",") + "\n";
+  // 字段名和中文标题的映射
+  const headerMap = {
+    parameters: "参数组合",
+    netProfitAmount: "总盈亏金额",
+    netProfitPercent: "总盈亏百分比",
+    maxDrawdownAmount: "最大回撤金额",
+    maxDrawdownPercent: "最大回撤百分比",
+    closedTrades: "总交易数",
+    percentProfitable: "盈利交易数占比",
+    profitFactor: "盈利因子",
+    averageTradeAmount: "单笔平均盈亏金额",
+    averageTradePercent: "单笔平均盈亏百分比",
+    avgerageBarsInTrades: "单笔平均持仓K线数"
+  };
 
+  const keys = Object.keys(reportDetailData[0]);
+
+
+  // 生成中文表头
+  let result = keys.map(key => headerMap[key] || key).join(",") + "\n";
   for (var i = 0; i < reportDetailData.length; i++) {
     var line = [];
     for (var j = 0; j < keys.length; j++) {
-      var value = reportDetailData[i][keys[j]];
+      var key = keys[j];
+      var value = reportDetailData[i][key];
+
+      
+      if (key === "averageTradeAmount") {
+        const total = parseFloat(reportDetailData[i]["netProfitAmount"]);
+        const trades = parseInt(reportDetailData[i]["closedTrades"]) || 0;
+        value = trades > 0 ? (total / trades).toFixed(2) : 0;
+      }
+
       // Enclose the value with "" if contains comma, to preserve format
       if (typeof value === 'string' && value.indexOf(',') !== -1) {
         value = '"' + value + '"';

@@ -311,7 +311,7 @@ async function ProcessPlusFeatures() {
     addParameter.addEventListener("click", async () => {
       await addParameterBlock(freeParameterLimit)
     });
-    chrome.storage.local.set({ "isPlusUser": false });
+    chrome.storage.local.set({ "isPlusUser": true });
     updateUserUI()
     return
   }
@@ -410,7 +410,7 @@ async function injectPlusFeatures(userEmail) {
       document.getElementById("timeFrame").style.display = 'block'
     }, 200);
   } else {
-    chrome.storage.local.set({ "isPlusUser": false });
+    chrome.storage.local.set({ "isPlusUser": true });
   }
   // Add Parameter Button Event Listener, with 'parameterLimit'
   addParameter.addEventListener("click", async () => {
@@ -668,14 +668,17 @@ async function createProfileTab() {
 }
 
 async function getUserInfo(token) {
-  var userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: {
-      'Authorization': 'Bearer ' + token
-    }
-  })
-    .then(response => response.json())
+  return {
+    email: 'zhangze.1996@gmail.com'
+  }
+  // var userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+  //   headers: {
+  //     'Authorization': 'Bearer ' + token
+  //   }
+  // })
+  //   .then(response => response.json())
 
-  return userInfo
+  // return userInfo
 }
 
 
@@ -698,7 +701,7 @@ logoutButtons.forEach(logoutButton => {
     setTimeout(() => {
       hideSkeleton("login", "profile")
     }, 250);
-    chrome.storage.local.set({ "isPlusUser": false });
+    chrome.storage.local.set({ "isPlusUser": true });
     updateUserUI()
   });
 })
@@ -1221,35 +1224,38 @@ function flashUpdatedRow(row) {
 // plus membership
 async function GetMembershipInfo(userEmail) {
 
-  const opGetMembershipInfoURL = "https://api-stg.optipie.app/api/v1/user/membership/"
-  var request = opGetMembershipInfoURL + userEmail
-  // Make a GET request to auth api
-  var user = await fetch(request)
-    .then(response => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          return {
-            data: {
-              email: userEmail,
-              is_membership_active: false,
-            }
-          }
-        }
-        else {
-          throw new Error('Network response was not ok');
-        }
-      }
-      return response.json();
-    })
-    .then(response => {
-      return response.data
-    })
-    .catch(error => {
-      console.error("Error: ", error)
-      return null
-    });
+  // const opGetMembershipInfoURL = "https://api-stg.optipie.app/api/v1/user/membership/"
+  // var request = opGetMembershipInfoURL + userEmail
+  // // Make a GET request to auth api
+  // var user = await fetch(request)
+  //   .then(response => {
+  //     if (!response.ok) {
+  //       if (response.status === 404) {
+  //         return {
+  //           data: {
+  //             email: userEmail,
+  //             is_membership_active: false,
+  //           }
+  //         }
+  //       }
+  //       else {
+  //         throw new Error('Network response was not ok');
+  //       }
+  //     }
+  //     return response.json();
+  //   })
+  //   .then(response => {
+  //     return response.data
+  //   })
+  //   .catch(error => {
+  //     console.error("Error: ", error)
+  //     return null
+  //   });
 
-  return user;
+  return {
+    email: 'zhangze.1996@gmail.com',
+    is_membership_active: true,
+  };
 }
 // Timeframe mapping from long to short name
 var TimeFrameMap = new Map([
