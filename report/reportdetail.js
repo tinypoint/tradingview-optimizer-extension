@@ -14,17 +14,38 @@ updateUserUI();
 
 function parseAmount(str) {
   if (!str) return 0;
-  let cleaned = str.replace(/[,$USD\s]/g, "");
-  return parseFloat(cleaned).toFixed(2);
+
+  // 1. 替换非标准负号为标准 "-"
+  let normalized = str.replace(/[−–—]/g, "-");
+
+  // 2. 去掉美元符号、USD、逗号、空格等
+  let cleaned = normalized.replace(/[\$,USD\s]/g, "");
+
+  // 3. 解析为浮点数并保留两位小数
+  let num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+
+  return parseFloat(num.toFixed(2));
 }
 
 // 处理百分比（去掉 %），转为 0~1 区间，保留 4 位小数
 function parsePercent(str) {
   if (!str) return 0;
-  // 去掉 +, -, %, 千分位逗号和空格
-  let cleaned = str.replace(/[,%\s]/g, "");
-  return (parseFloat(cleaned) / 100).toFixed(4);
+
+  // 1. 替换非标准负号为标准 "-"
+  let normalized = str.replace(/[−–—]/g, "-");
+
+  // 2. 去掉百分号、逗号、空格（注意不要去掉 -）
+  let cleaned = normalized.replace(/[%\s,]/g, "");
+
+  // 3. 解析
+  let num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+
+  // 4. 转换为小数并保留四位小数
+  return parseFloat((num / 100).toFixed(4));
 }
+
 
 function parseInteger(str) {
   if (!str) return 0;
