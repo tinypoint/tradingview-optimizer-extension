@@ -21,8 +21,16 @@ function parseAmount(str) {
 // 处理百分比（去掉 %），转为 0~1 区间，保留 4 位小数
 function parsePercent(str) {
   if (!str) return 0;
-  let cleaned = str.replace(/[%\s]/g, "");
+  // 去掉 +, -, %, 千分位逗号和空格
+  let cleaned = str.replace(/[,%\s]/g, "");
   return (parseFloat(cleaned) / 100).toFixed(4);
+}
+
+function parseInteger(str) {
+  if (!str) return 0;
+  // 去掉逗号和空格
+  let cleaned = str.replace(/[,\s]/g, "");
+  return parseInt(cleaned, 10);
 }
 
 let charts = []; // 存放所有 chart 实例，方便联动
@@ -105,7 +113,6 @@ function drawCharts(data) {
     }
   );
 
-
   // 2️⃣ 总交易数
   const chartTrades = new Chart(
     document.getElementById('chartTrades').getContext('2d'),
@@ -116,7 +123,7 @@ function drawCharts(data) {
         datasets: [
           {
             label: '总交易数',
-            data: data.map(item => parseFloat(item.closedTrades)),
+            data: data.map(item => item.closedTrades),
             borderWidth: 2,
           }
         ]
@@ -221,14 +228,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           }
           for (const [key, value] of Object.entries(popupAction.message.report.reportData)) {            
             let total = parseAmount(value.netProfit.amount);
-            let trades = parseInt(value.closedTrades) || 0;
+            let trades = parseInteger(value.closedTrades);
             let reportDetail = {
               "parameters": key,
               "netProfitAmount": parseAmount(value.netProfit.amount),
               "netProfitPercent": parsePercent(value.netProfit.percent),
               "maxDrawdownAmount": parseAmount(value.maxDrawdown.amount),
               "maxDrawdownPercent": parsePercent(value.maxDrawdown.percent),
-              "closedTrades": value.closedTrades,
+              "closedTrades": parseInteger(value.closedTrades),
               "percentProfitable": parsePercent(value.percentProfitable),
               "profitFactor": value.profitFactor,
               "averageTradeAmount": trades > 0 ? (total / trades).toFixed(2) : 0,
@@ -275,7 +282,7 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
     }
 
     let total = parseAmount(value.netProfit.amount);
-    let trades = parseInt(value.closedTrades) || 0;
+    let trades = parseInteger(value.closedTrades);
 
     let reportDetail = {
       "parameters": key,
@@ -283,7 +290,7 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
       "netProfitPercent": parsePercent(value.netProfit.percent),
       "maxDrawdownAmount": parseAmount(value.maxDrawdown.amount),
       "maxDrawdownPercent": parsePercent(value.maxDrawdown.percent),
-      "closedTrades": value.closedTrades,
+      "closedTrades": parseInteger(value.closedTrades),
       "percentProfitable": parsePercent(value.percentProfitable),
       "profitFactor": value.profitFactor,
       "averageTradeAmount": trades > 0 ? (total / trades).toFixed(2) : 0,
@@ -416,7 +423,7 @@ function convertReportToCSV(reportDetailData) {
       
       if (key === "averageTradeAmount") {
         const total = parseFloat(reportDetailData[i]["netProfitAmount"]);
-        const trades = parseInt(reportDetailData[i]["closedTrades"]) || 0;
+        const trades = parseInteger(reportDetailData[i]["closedTrades"]);
         value = trades > 0 ? (total / trades).toFixed(2) : 0;
       }
 
