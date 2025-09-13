@@ -33,6 +33,27 @@ var sleep = (ms) => new Promise((resolve) => {
     window.postMessage({ type: "SleepEventStart", delay: ms }, "*");
 });
 
+function playCompletionSound() {
+    try {
+        let ctx = new (window.AudioContext || window.webkitAudioContext)();
+        let oscillator = ctx.createOscillator();
+        let gainNode = ctx.createGain();
+
+        oscillator.type = "sine"; 
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime); // Hz 频率决定音调
+        gainNode.gain.setValueAtTime(0.9, ctx.currentTime); // <<< 音量调大
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 1); // 播放 0.3 秒
+    } catch (err) {
+        console.error("播放提示音失败: ", err);
+    }
+}
+
+
 // Run Optimization Process 
 Process()
 
@@ -76,7 +97,7 @@ async function Process() {
     window.addEventListener("message", stopOptimizationEventCallback);
 
     //Wait for UserInputsEvent Callback
-    await sleep(750)
+    await sleep(1500)
     // sort userInputs before starting optimization 
     userNumericInputs.sort(function (a, b) {
         return a.parameterIndex - b.parameterIndex;
@@ -107,10 +128,11 @@ async function Process() {
         await OptimizeCheckboxes(() => OptimizeSelectables(() => OptimizeNumerics()))
         updateReport({ status: "FINISHED", isFinal: true })
         await PublishReport()
+        playCompletionSound();
     } else {
         for (let i = 0; i < userTimeFrames.length; i++) {
             // open time intervals dropdown and change it
-            await sleep(500)
+            await sleep(1500)
 
             let timeIntervalDropdown = document.querySelector("#header-toolbar-intervals div[class*='menuContent' i]")
             // check if user has favorite time frames selected
@@ -120,11 +142,11 @@ async function Process() {
             timeIntervalDropdown.click()
 
             let timeIntervalQuery = `div[data-value='${userTimeFrames[i][0]}']`
-            await sleep(1000)
+            await sleep(2000)
             document.querySelector(timeIntervalQuery).click()
-            await sleep(1000)
+            await sleep(2000)
             reportDataMessage = prepareInitialReport()
-            await sleep(500)
+            await sleep(1500)
             try {
                 await OptimizeCheckboxes(() => OptimizeSelectables(() => OptimizeNumerics()))
             } catch (err) {
@@ -214,7 +236,7 @@ async function Process() {
                 }
             }
 
-            await sleep(250)
+            await sleep(1000)
 
             if (nextFunction) {
                 await nextFunction();
@@ -246,11 +268,11 @@ async function Process() {
                 tvInputs = document.querySelectorAll(tvInputsQuery)
                 // open up dropdown
                 tvInputs[parameterIndex].querySelector("span").click()
-                await sleep(500)
+                await sleep(1500)
                 // click on dropdown option
                 document.querySelector(`div[class*=menuBox i] div[id*='${option}' i]`).click()
 
-                await sleep(250)
+                await sleep(1000)
             }
             if (nextFunction) {
                 await nextFunction();
@@ -428,7 +450,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
 
     tvInputs[tvParameterIndex].dispatchEvent(new MouseEvent('mouseover', { 'bubbles': true }));
 
-    await sleep(150)
+    await sleep(500)
     // Calculate new step value
     let newStepValue = parseFloat(tvInputs[tvParameterIndex].value) + parseFloat(stepSize)
     if (isFloat(newStepValue)) {
@@ -437,7 +459,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
     }
     ChangeTvInput(tvInputs[tvParameterIndex], newStepValue)
 
-    await sleep(200)
+    await sleep(1000)
 
     // Click on "Ok" button
     let okButton =
@@ -506,7 +528,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
         }
     }
 
-    await sleep(100)
+    await sleep(500)
     // Send single optimization result as a batch, update maxProfit and Optimization result before hand
     let optimizationResultsObject = Object.fromEntries(optimizationResult);
 
@@ -523,7 +545,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
         document.querySelector("div[class*='strategyGroup' i] button");
 
     reportTitleButton.click()
-    await sleep(50)
+    await sleep(300)
 
     let settingsButton =
         document.querySelector("div[aria-label*='settings' i]") ||
@@ -534,7 +556,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
 
     settingsButton.click()
 
-    await sleep(150)
+    await sleep(800)
     tvInputs = document.querySelectorAll(tvInputsQuery)
 }
 
