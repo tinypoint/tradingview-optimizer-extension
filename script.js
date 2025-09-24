@@ -468,11 +468,13 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
 
     okButton.click()
 
+    await sleep(2000)
+
     let isBacktestUpdated = false
     // check if deep backtesting is enabled
     let isBacktestingOn = document.querySelector("span[class*='deepBacktesting' i]") != null
     if (isBacktestingOn === true) {
-        await sleep(500)
+        await sleep(2000)
         let backtestUpdateButton = document.querySelector("div[data-qa-id*='backtesting-updated' i] button")
         if (backtestUpdateButton != null) {
             backtestUpdateButton.click()
