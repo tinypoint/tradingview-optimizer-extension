@@ -57,6 +57,10 @@ function parseInteger(str) {
 let charts = []; // 存放所有 chart 实例，方便联动
 
 function drawCharts(data) {
+  // 销毁旧实例防止重复渲染
+  charts.forEach(chart => chart.destroy?.());
+  charts = [];
+
   const labels = data.map(item => item.parameters);
 
   const chartProfit = new Chart(
@@ -354,6 +358,13 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
     drawCharts(reportDetailData);
     enableChartLinking();
   }, 250);
+
+  $table.on('sort.bs.table', function () {
+    // false 代表获取所有页的数据，保持图表顺序与表格一致
+    const sortedData = $table.bootstrapTable('getData', false);
+    drawCharts(sortedData);
+    enableChartLinking();
+  });
   const $downloadReportButton = $('#download-report')
 
   $downloadReportButton.click(function () {
@@ -465,19 +476,24 @@ function customSort(sortName, sortOrder, data) {
   data.sort(function (a, b) {
     var aa = ""
     var bb = ""
-    // Check if number is negative with regex, rebuild and remove non-numeric chars
-    if (a[sortName].charAt(0).match(/\D/) != null && a[sortName].charAt(0) != '+') {
-      aa = '-' + a[sortName].substring(1, a[sortName].length)
-      aa = +((aa + '').replace(/[^0-9.-]+/g, ""))
+    if (typeof a[sortName] === 'number' && typeof b[sortName] === 'number') {
+      aa = a[sortName];
+      bb = b[sortName];
     } else {
-      aa = +((a[sortName] + '').replace(/[^0-9.-]+/g, ""))
-    }
+      // Check if number is negative with regex, rebuild and remove non-numeric chars
+      if (a[sortName].charAt(0).match(/\D/) != null && a[sortName].charAt(0) != '+') {
+        aa = '-' + a[sortName].substring(1, a[sortName].length)
+        aa = +((aa + '').replace(/[^0-9.-]+/g, ""))
+      } else {
+        aa = +((a[sortName] + '').replace(/[^0-9.-]+/g, ""))
+      }
 
-    if (b[sortName].charAt(0).match(/\D/) != null && b[sortName].charAt(0) != '+') {
-      bb = '-' + b[sortName].substring(1, b[sortName].length)
-      bb = +((bb + '').replace(/[^0-9.-]+/g, ""))
-    } else {
-      bb = +((b[sortName] + '').replace(/[^0-9.-]+/g, ""))
+      if (b[sortName].charAt(0).match(/\D/) != null && b[sortName].charAt(0) != '+') {
+        bb = '-' + b[sortName].substring(1, b[sortName].length)
+        bb = +((bb + '').replace(/[^0-9.-]+/g, ""))
+      } else {
+        bb = +((b[sortName] + '').replace(/[^0-9.-]+/g, ""))
+      }
     }
 
     if (aa < bb) {
