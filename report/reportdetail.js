@@ -56,6 +56,85 @@ function parseInteger(str) {
 
 let charts = []; // 存放所有 chart 实例，方便联动
 
+const hoverLinePlugin = {
+  id: 'hoverLine',
+  afterDatasetsDraw(chart) {
+    const pluginOptions = chart.options?.plugins?.hoverLine;
+    if (!pluginOptions?.enabled) {
+      return;
+    }
+
+    const activeElements = chart.tooltip?.getActiveElements?.();
+    if (!activeElements?.length) {
+      return;
+    }
+
+    const { ctx, chartArea } = chart;
+    const { top, bottom, left, right } = chartArea;
+    const activeElement = activeElements[0]?.element;
+    const y = activeElement?.y;
+    if (typeof y !== 'number') {
+      return;
+    }
+
+    const rawValue =
+      activeElement.$context?.parsed?.y ?? activeElement.$context?.raw;
+    const formatter = pluginOptions.formatter;
+    const valueText = formatter ? formatter(rawValue) : rawValue;
+    if (valueText === undefined || valueText === null || valueText === '') {
+      return;
+    }
+
+    ctx.save();
+    const strokeStyle = pluginOptions.color || 'rgba(52, 73, 94, 0.8)';
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = pluginOptions.lineWidth || 1;
+    const dash = pluginOptions.dash ?? [4, 4];
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const fontSize = pluginOptions.fontSize || Chart.defaults.font.size || 12;
+    const fontFamily =
+      pluginOptions.fontFamily || Chart.defaults.font.family || 'sans-serif';
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    const padding = 4;
+    const textWidth = ctx.measureText(valueText).width;
+    const labelWidth = textWidth + padding * 2;
+    const labelHeight = fontSize + padding * 2;
+    let labelX = right - labelWidth - 4;
+    if (labelX < left + 4) {
+      labelX = left + 4;
+    }
+    let labelY = y - labelHeight / 2;
+    if (labelY < top + 4) {
+      labelY = top + 4;
+    }
+    if (labelY + labelHeight > bottom - 4) {
+      labelY = bottom - labelHeight - 4;
+    }
+
+    ctx.fillStyle = pluginOptions.backgroundColor || 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = pluginOptions.borderColor || strokeStyle;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(labelX, labelY, labelWidth, labelHeight);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = pluginOptions.textColor || '#2c3e50';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(valueText, labelX + padding, labelY + labelHeight / 2);
+
+    ctx.restore();
+  }
+};
+
+Chart.register(hoverLinePlugin);
+
 function drawCharts(data) {
   // 销毁旧实例防止重复渲染
   charts.forEach(chart => chart.destroy?.());
@@ -179,6 +258,38 @@ function drawCharts(data) {
   charts = [chartProfit, chartDrawdown, chartTrades, chartWinrate, chartAvgTrade];
 }
 
+function formatHoverValue(value, isPercent) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  let candidate = value;
+  if (typeof candidate === 'object') {
+    if (candidate.y !== undefined) {
+      candidate = candidate.y;
+    } else if (candidate.value !== undefined) {
+      candidate = candidate.value;
+    } else if (candidate.raw !== undefined) {
+      candidate = candidate.raw;
+    } else {
+      const valueOf = candidate.valueOf?.();
+      candidate = valueOf !== candidate ? valueOf : candidate.toString?.();
+    }
+  }
+
+  const num = Number(candidate);
+  if (!Number.isFinite(num)) {
+    return String(candidate ?? '');
+  }
+  if (isPercent) {
+    return (num * 100).toFixed(2) + '%';
+  }
+  if (Number.isInteger(num)) {
+    return num.toString();
+  }
+  return num.toFixed(2);
+}
+
 function baseChartOptions(title, yLabel, isPercent = false, minMax = null) {
   return {
     responsive: true,
@@ -191,6 +302,10 @@ function baseChartOptions(title, yLabel, isPercent = false, minMax = null) {
       title: {
         display: true,
         text: title
+      },
+      hoverLine: {
+        enabled: true,
+        formatter: value => formatHoverValue(value, isPercent)
       }
     },
     scales: {
