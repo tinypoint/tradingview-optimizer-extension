@@ -340,6 +340,12 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
     $table.bootstrapTable('hideColumn', 'avgerageBarsInTrades');
   }
 
+  const updateChartsFromTable = () => {
+    const sortedData = $table.bootstrapTable('getData', false);
+    drawCharts(sortedData);
+    enableChartLinking();
+  };
+
   setTimeout(() => {
     $table.bootstrapTable('load', reportDetailData)
     $table.bootstrapTable('hideLoading')
@@ -359,12 +365,7 @@ chrome.storage.local.get("report-data-" + strategyID, function (item) {
     enableChartLinking();
   }, 250);
 
-  $table.on('sort.bs.table', function () {
-    // false 代表获取所有页的数据，保持图表顺序与表格一致
-    const sortedData = $table.bootstrapTable('getData', false);
-    drawCharts(sortedData);
-    enableChartLinking();
-  });
+  $table.on('post-body.bs.table', updateChartsFromTable);
   const $downloadReportButton = $('#download-report')
 
   $downloadReportButton.click(function () {
