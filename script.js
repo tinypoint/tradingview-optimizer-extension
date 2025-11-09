@@ -112,15 +112,9 @@ async function Process() {
         if (element.parameterIndex == -1) {
             element.parameterIndex = index
         }
-        if (index == 0) {
-            range = (element.end - element.start) / element.stepSize
-            var roundedRange = Math.round(range * 100) / 100
-            ranges.push(roundedRange)
-        } else {
-            range = ((element.end - element.start) / element.stepSize)
-            var roundedRange = (Math.round(range * 100) / 100) + 1
-            ranges.push(roundedRange)
-        }
+        range = (element.end - element.start) / element.stepSize
+        var roundedRange = Math.round(range * 100) / 100
+        ranges.push(roundedRange)
     });
     if (userTimeFrames == null || userTimeFrames.length <= 0) {
         // no time frame selection or free user flow
@@ -167,46 +161,99 @@ async function Process() {
     // Optimize numeric inputs in the strategey for the currently chosen timeframe
     async function OptimizeNumerics() {
         shouldStop = false;
-        await SetUserIntervals()
+        if (!userNumericInputs.length) {
+            return;
+        }
 
-        // Base call function
-        const baseCall = async () => {
-            for (let j = 0; j < ranges[0]; j++) {
-                if (shouldStop) {
-                    break;
+        await SetUserIntervals();
+
+        const numericMeta = userNumericInputs
+            .map((param) => {
+                const parameterIndex = param.parameterIndex;
+                const input = tvInputs[parameterIndex];
+                if (!input) {
+                    console.warn(`[OptimizeNumerics] Missing tv input for parameter index ${parameterIndex}`);
+                    return null;
                 }
-                await OptimizeParams(userNumericInputs[0].parameterIndex, userNumericInputs[0].stepSize);
-            }
-        };
 
-        // Wrapper function for subsequent calls to build nested for loops
-        const wrapSubsequentCalls = async (baseCall, index) => {
-            if (index >= ranges.length) {
-                // start executing after wrapping everything in place
-                await baseCall()
+                const start = toNumber(param.start);
+                const rawEnd = param.end == null ? start : toNumber(param.end);
+                const rawStep = toNumber(param.stepSize);
+                const stepMagnitude = Math.abs(rawStep) || 1;
+                const direction = rawEnd >= start ? 1 : -1;
+                const totalDelta = Math.abs(rawEnd - start);
+                const totalSteps = totalDelta === 0 ? 1 : Math.floor(totalDelta / stepMagnitude) + 1;
+
+                return {
+                    parameterIndex,
+                    start,
+                    step: stepMagnitude * direction,
+                    precision: getFloatPrecision(param.stepSize),
+                    totalSteps,
+                };
+            })
+            .filter(Boolean);
+
+        if (!numericMeta.length) {
+            return;
+        }
+
+        const HOVER_DELAY = 400;
+        const INPUT_DELAY = 400;
+
+        const setParameterValue = async (meta, rawValue, { triggerBacktest = true } = {}) => {
+            if (shouldStop) {
                 return;
             }
 
-            const currentCall = async () => {
-                for (let j = 0; j < ranges[index]; j++) {
+            const input = tvInputs[meta.parameterIndex];
+            if (!input) {
+                console.warn(`[OptimizeNumerics] Input missing for parameter index ${meta.parameterIndex}`);
+                return;
+            }
+
+            const value = fixPrecision(rawValue, meta.precision);
+            input.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+            await sleep(HOVER_DELAY);
+
+            ChangeTvInput(input, value);
+            await sleep(INPUT_DELAY);
+
+            if (triggerBacktest) {
+                await TiggerBacktest();
+            }
+        };
+
+        const traverse = async (level = 0) => {
+            if (shouldStop || level >= numericMeta.length) {
+                return;
+            }
+
+            const meta = numericMeta[level];
+            for (let stepIndex = 0; stepIndex < meta.totalSteps; stepIndex++) {
+                if (shouldStop) {
+                    break;
+                }
+
+                const nextValue = meta.start + stepIndex * meta.step;
+                await setParameterValue(meta, nextValue, {
+                    triggerBacktest: level === numericMeta.length - 1,
+                });
+
+                if (level < numericMeta.length - 1) {
+                    await traverse(level + 1);
                     if (shouldStop) {
                         break;
                     }
-                    await baseCall();
-                    await ResetInnerOptimizeOuterParameter(ranges, j, index);
                 }
-            };
+            }
 
-            await wrapSubsequentCalls(currentCall, index + 1); // recursive call for the next level
+            if (level < numericMeta.length - 1 && !shouldStop) {
+                await setParameterValue(meta, meta.start);
+            }
         };
 
-        // Function to execute nested loops
-        const executeNestedLoops = async () => {
-            await wrapSubsequentCalls(baseCall, 1); // Wrap and execute subsequent calls recursively starting from index 1
-        };
-
-        // Call the function to execute the nested loops
-        await executeNestedLoops()
+        await traverse();
     }
 
     // Optimize checkbox inputs in the strategey for the currently chosen timeframe 
@@ -400,29 +447,14 @@ function prepareInitialReport() {
 async function SetUserIntervals() {
     for (let i = 0; i < userNumericInputs.length; i++) {
         let userInput = userNumericInputs[i]
-        let startValue = userInput.start - userInput.stepSize
-
-        if (isFloat(startValue)) {
-            let precision = getFloatPrecision(userInput.stepSize)
-            startValue = fixPrecision(startValue, precision)
-        }
-
-        // reset by step size in case of a user input is as same as current tv input value 
-        if (userInput.start == tvInputs[userInput.parameterIndex].value) {
-            await OptimizeParams(userInput.parameterIndex, "-" + userInput.stepSize)
-        } else {
-            ChangeTvInput(tvInputs[userInput.parameterIndex], startValue)
-        }
-
-        await OptimizeParams(userInput.parameterIndex, userInput.stepSize)
-
-        await sleep(250);
+        ChangeTvInput(tvInputs[userInput.parameterIndex], userInput.start)
     }
     //TO-DO: Inform user about Parameter Intervals are set and optimization starting now.
+
 }
 
 // Optimize strategy for given tvParameterIndex, increment parameter, observe mutation 
-async function OptimizeParams(tvParameterIndex, stepSize) {
+async function TiggerBacktest() {
     function newReportData() {
         return new Object({
             netProfit: {
@@ -448,19 +480,6 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
     let reportData = newReportData();
     let optimizationResult = new Map();
 
-    tvInputs[tvParameterIndex].dispatchEvent(new MouseEvent('mouseover', { 'bubbles': true }));
-
-    await sleep(500)
-    // Calculate new step value
-    let newStepValue = parseFloat(tvInputs[tvParameterIndex].value) + parseFloat(stepSize)
-    if (isFloat(newStepValue)) {
-        let precision = getFloatPrecision(stepSize)
-        newStepValue = fixPrecision(newStepValue, precision)
-    }
-    ChangeTvInput(tvInputs[tvParameterIndex], newStepValue)
-
-    await sleep(1000)
-
     // Click on "Ok" button
     let okButton =
         document.querySelector("button[data-name='submit-button' i]") ||
@@ -468,13 +487,13 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
 
     okButton.click()
 
-    await sleep(2000)
+    await sleep(300)
 
     let isBacktestUpdated = false
     // check if deep backtesting is enabled
     let isBacktestingOn = document.querySelector("span[class*='deepBacktesting' i]") != null
     if (isBacktestingOn === true) {
-        await sleep(2000)
+        await sleep(300)
         let backtestUpdateButton = document.querySelector("div[data-qa-id*='backtesting-updated' i] button")
         if (backtestUpdateButton != null) {
             backtestUpdateButton.click()
@@ -516,7 +535,7 @@ async function OptimizeParams(tvParameterIndex, stepSize) {
             // expected error type, kind of warning
             observer.disconnect()
             resolve({ timedOut: true })
-        }, 15 * 1000);
+        }, 30 * 1000);
     });
 
     // Promise race the obvervation with 15 sec timeout in case of Startegy Test Overview window fails to load
@@ -734,6 +753,15 @@ function getFloatPrecision(number) {
 function fixPrecision(value, precision) {
     let multiplier = Math.pow(10, precision)
     return Math.round(value * multiplier) / multiplier
+}
+
+function toNumber(value) {
+    if (value == null || value === "") {
+        return 0
+    }
+    let normalizedValue = String(value).replace(",", ".")
+    let parsed = Number(normalizedValue)
+    return Number.isFinite(parsed) ? parsed : 0
 }
 //Mutation Observer Code for console debugging purposes
 /*
